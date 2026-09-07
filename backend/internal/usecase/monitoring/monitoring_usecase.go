@@ -145,6 +145,10 @@ func (u *monitoringUsecase) IngestTelemetry(ctx context.Context, payload *domain
 		_ = u.serverRepo.Update(ctx, server)
 	}
 
+	if payload.Host.SSHHardened {
+		_ = u.serverRepo.UpdateSSHHardened(ctx, payload.ServerID, true)
+	}
+
 	u.syncDiscoveredInfrastructure(ctx, server, payload)
 
 	if u.evaluator != nil {

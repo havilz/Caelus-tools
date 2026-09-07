@@ -86,7 +86,7 @@ func TestClientIPMiddleware_Integration(t *testing.T) {
 	r.Get("/test-ip", func(w http.ResponseWriter, req *http.Request) {
 		extracted := middleware.ExtractClientIP(req)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(fmt.Sprintf("ip:%s,remote:%s", extracted, req.RemoteAddr)))
+		_, _ = w.Write(fmt.Appendf(nil, "ip:%s,remote:%s", extracted, req.RemoteAddr))
 	})
 
 	// 1. Direct connection from untrusted IP attempting spoofing

@@ -13,6 +13,9 @@ import {
   Check,
   Server,
   Layers,
+  Wrench,
+  Loader2,
+  RotateCw,
 } from "lucide-react";
 
 interface FindingDetailModalProps {
@@ -20,6 +23,9 @@ interface FindingDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdateStatus: (findingId: string, status: FindingStatus) => Promise<void>;
+  onRemediate?: (findingId: string) => Promise<void>;
+  onReopen?: (findingId: string) => Promise<void>;
+  onReverify?: (findingId: string) => Promise<void>;
 }
 
 export const FindingDetailModal: React.FC<FindingDetailModalProps> = ({
@@ -27,9 +33,15 @@ export const FindingDetailModal: React.FC<FindingDetailModalProps> = ({
   isOpen,
   onClose,
   onUpdateStatus,
+  onRemediate,
+  onReopen,
+  onReverify,
 }) => {
   const [copied, setCopied] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isRemediating, setIsRemediating] = useState(false);
+  const [isReverifying, setIsReverifying] = useState(false);
+  const [remediationSuccess, setRemediationSuccess] = useState(false);
 
   if (!isOpen || !finding) return null;
 
@@ -38,6 +50,49 @@ export const FindingDetailModal: React.FC<FindingDetailModalProps> = ({
       navigator.clipboard.writeText(finding.remediation_command);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleRemediate = async () => {
+    if (!onRemediate || !finding) return;
+    setIsRemediating(true);
+    try {
+      await onRemediate(finding.id);
+      setRemediationSuccess(true);
+      setTimeout(() => {
+        setRemediationSuccess(false);
+        onClose();
+      }, 1500);
+    } catch (err) {
+      console.error("Auto remediation failed:", err);
+    } finally {
+      setIsRemediating(false);
+    }
+  };
+
+  const handleReopen = async () => {
+    if (!onReopen || !finding) return;
+    setIsUpdating(true);
+    try {
+      await onReopen(finding.id);
+      onClose();
+    } catch (err) {
+      console.error("Failed to reopen finding:", err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleReverify = async () => {
+    if (!onReverify || !finding) return;
+    setIsReverifying(true);
+    try {
+      await onReverify(finding.id);
+      onClose();
+    } catch (err) {
+      console.error("Failed to reverify finding:", err);
+    } finally {
+      setIsReverifying(false);
     }
   };
 
@@ -67,7 +122,7 @@ export const FindingDetailModal: React.FC<FindingDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 animate-in fade-in duration-150">
       <div className="relative w-full max-w-2xl bg-[#111111] border border-[#262626] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-6 border-b border-[#262626] flex items-start justify-between gap-4">
           <div className="space-y-2">
@@ -163,10 +218,34 @@ export const FindingDetailModal: React.FC<FindingDetailModalProps> = ({
         </div>
 
         <div className="p-4 border-t border-[#262626] bg-[#0d0d0d] flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {onRemediate && finding.status !== "resolved" && (
+              <button
+                disabled={isUpdating || isRemediating}
+                onClick={handleRemediate}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors disabled:opacity-50 shadow-sm"
+              >
+                {isRemediating ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Memperbaiki...</span>
+                  </>
+                ) : remediationSuccess ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-slate-950" />
+                    <span>Telah Diperbaiki</span>
+                  </>
+                ) : (
+                  <>
+                    <Wrench className="w-3.5 h-3.5 text-slate-950" />
+                    <span>Perbaiki Otomatis (1-Click Auto-Remediate)</span>
+                  </>
+                )}
+              </button>
+            )}
             {finding.status !== "resolved" && (
               <button
-                disabled={isUpdating}
+                disabled={isUpdating || isRemediating}
                 onClick={() => handleStatusChange("resolved")}
                 className={AppTheme.controls.buttonPrimary}
               >
@@ -176,7 +255,7 @@ export const FindingDetailModal: React.FC<FindingDetailModalProps> = ({
             )}
             {finding.status === "open" && (
               <button
-                disabled={isUpdating}
+                disabled={isUpdating || isRemediating}
                 onClick={() => handleStatusChange("acknowledged")}
                 className={AppTheme.controls.buttonSecondary}
               >
@@ -185,11 +264,30 @@ export const FindingDetailModal: React.FC<FindingDetailModalProps> = ({
             )}
             {finding.status !== "false_positive" && (
               <button
-                disabled={isUpdating}
+                disabled={isUpdating || isRemediating}
                 onClick={() => handleStatusChange("false_positive")}
                 className={AppTheme.controls.buttonGhost}
               >
                 False Positive
+              </button>
+            )}
+            {finding.status === "resolved" && onReverify && (
+              <button
+                disabled={isUpdating || isRemediating || isReverifying}
+                onClick={handleReverify}
+                className={AppTheme.controls.buttonPrimary}
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${isReverifying ? "animate-spin" : ""}`} />
+                <span>{isReverifying ? "Memverifikasi..." : "Verifikasi Ulang"}</span>
+              </button>
+            )}
+            {finding.status === "resolved" && onReopen && (
+              <button
+                disabled={isUpdating || isRemediating || isReverifying}
+                onClick={handleReopen}
+                className={AppTheme.controls.buttonSecondary}
+              >
+                Buka Kembali
               </button>
             )}
           </div>

@@ -110,10 +110,12 @@ export default function NetworksManagementPage() {
         source: newRuleSource.trim(),
         action: newRuleAction,
         network_id: networks[0]?.id,
+        server_id: newRuleServerId || undefined,
       });
 
       setFirewallRules((prev) => [created, ...prev]);
       setNewRuleName("");
+      setNewRuleServerId("");
       setIsRuleModalOpen(false);
     } catch (err: any) {
       alert(`Failed to create firewall rule: ${err?.response?.data?.message || err.message}`);
@@ -372,6 +374,7 @@ export default function NetworksManagementPage() {
               <thead className="bg-slate-950/60 text-slate-400 border-b border-slate-800 font-medium">
                 <tr>
                   <th className="px-4 py-3">Rule Name</th>
+                  <th className="px-4 py-3">Target Scope</th>
                   <th className="px-4 py-3">Direction</th>
                   <th className="px-4 py-3">Protocol</th>
                   <th className="px-4 py-3">Port Range</th>
@@ -383,7 +386,7 @@ export default function NetworksManagementPage() {
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
                 {filteredRules.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center">
+                    <td colSpan={8} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center space-y-3">
                         <div className="p-3 rounded-full bg-slate-800/60 border border-slate-700 text-slate-400">
                           <ShieldCheck className="w-6 h-6" />
@@ -416,6 +419,20 @@ export default function NetworksManagementPage() {
                           <Lock className="w-3.5 h-3.5 text-slate-500" />
                           {rule.name}
                         </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {rule.server_id ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950/60 text-cyan-400 border border-cyan-800/60 flex items-center gap-1 w-fit">
+                            <Server className="w-3 h-3" />
+                            <span>
+                              {servers.find((s) => s.id === rule.server_id)?.name || rule.server_id.slice(0, 8)}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700/60 w-fit">
+                            Global (VPC)
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3.5">
                         <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 uppercase">

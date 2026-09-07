@@ -58,6 +58,19 @@ export const securityService = {
     await apiClient.patch(`/security/findings/${id}/status`, { status });
   },
 
+  async remediateFinding(id: string): Promise<void> {
+    await apiClient.post(`/security/findings/${id}/remediate`);
+  },
+
+  async reopenFinding(id: string): Promise<void> {
+    await apiClient.post(`/security/findings/${id}/reopen`);
+  },
+
+  async reverifyFinding(id: string): Promise<SecurityFinding> {
+    const res = await apiClient.post<APIResponse<SecurityFinding>>(`/security/findings/${id}/reverify`);
+    return res.data.data!;
+  },
+
   async listIncidents(page = 1, limit = 20, status?: IncidentStatus): Promise<PaginatedResponse<SecurityIncident>> {
     const res = await apiClient.get<PaginatedResponse<SecurityIncident>>('/security/incidents', {
       params: { page, limit, status: status || undefined },

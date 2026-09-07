@@ -204,6 +204,73 @@ func (h *SecurityHandler) UpdateFindingStatus(w http.ResponseWriter, r *http.Req
 	response.Success(w, http.StatusOK, "Status temuan berhasil diperbarui", nil)
 }
 
+// RemediateFinding handles the 1-click automatic remediation request for a security finding.
+func (h *SecurityHandler) RemediateFinding(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := middleware.GetOrganizationIDFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusBadRequest, "Organization ID tidak ditemukan", nil)
+		return
+	}
+
+	findingID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Format Finding ID tidak valid", err.Error())
+		return
+	}
+
+	if err := h.securityUsecase.RemediateFinding(r.Context(), orgID, findingID); err != nil {
+		response.Error(w, http.StatusInternalServerError, "Gagal menjalankan remediasi otomatis", err.Error())
+		return
+	}
+
+	response.Success(w, http.StatusOK, "Remediasi otomatis berhasil dijalankan", nil)
+}
+
+// ReopenFinding handles reopening a resolved finding.
+func (h *SecurityHandler) ReopenFinding(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := middleware.GetOrganizationIDFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusBadRequest, "Organization ID tidak ditemukan", nil)
+		return
+	}
+
+	findingID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Format Finding ID tidak valid", err.Error())
+		return
+	}
+
+	if err := h.securityUsecase.ReopenFinding(r.Context(), orgID, findingID); err != nil {
+		response.Error(w, http.StatusInternalServerError, "Gagal membuka kembali temuan", err.Error())
+		return
+	}
+
+	response.Success(w, http.StatusOK, "Temuan berhasil dibuka kembali", nil)
+}
+
+// ReverifyFinding triggers a targeted verification scan for a finding.
+func (h *SecurityHandler) ReverifyFinding(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := middleware.GetOrganizationIDFromContext(r.Context())
+	if !ok {
+		response.Error(w, http.StatusBadRequest, "Organization ID tidak ditemukan", nil)
+		return
+	}
+
+	findingID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Format Finding ID tidak valid", err.Error())
+		return
+	}
+
+	finding, err := h.securityUsecase.ReverifyFinding(r.Context(), orgID, findingID)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Gagal menjalankan verifikasi ulang", err.Error())
+		return
+	}
+
+	response.Success(w, http.StatusOK, "Verifikasi ulang berhasil diproses", finding)
+}
+
 func (h *SecurityHandler) GetPostureOverview(w http.ResponseWriter, r *http.Request) {
 	orgID, ok := middleware.GetOrganizationIDFromContext(r.Context())
 	if !ok {

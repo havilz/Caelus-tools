@@ -51,6 +51,7 @@ type HostMetricsPayload struct {
 	OS                 string  `json:"os"`
 	Platform           string  `json:"platform"`
 	Hostname           string  `json:"hostname"`
+	SSHHardened        bool    `json:"ssh_hardened"`
 }
 
 type PortBindingPayload struct {

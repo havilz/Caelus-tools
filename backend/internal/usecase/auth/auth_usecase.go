@@ -34,8 +34,9 @@ type LoginInput struct {
 }
 
 type LoginOutput struct {
-	User   *domain.User   `json:"user"`
-	Tokens *jwt.TokenPair `json:"tokens"`
+	User         *domain.User         `json:"user"`
+	Organization *domain.Organization `json:"organization,omitempty"`
+	Tokens       *jwt.TokenPair       `json:"tokens"`
 }
 
 type Usecase interface {
@@ -76,6 +77,7 @@ func (u *authUsecase) Register(ctx context.Context, input RegisterInput) (*Regis
 	if err != nil {
 		return nil, err
 	}
+	newOrg.Role = domain.RoleOwner
 
 	tokens, err := u.jwtManager.GenerateTokenPair(newUser, &newOrg.ID)
 	if err != nil {
@@ -107,9 +109,22 @@ func (u *authUsecase) Login(ctx context.Context, input LoginInput) (*LoginOutput
 		return nil, err
 	}
 
+	var activeOrg *domain.Organization
+	if activeOrgID != nil {
+		if org, err := u.orgRepo.GetByID(ctx, *activeOrgID); err == nil && org != nil {
+			activeOrg = org
+			if member, err := u.orgRepo.GetMember(ctx, *activeOrgID, user.ID); err == nil && member != nil {
+				activeOrg.Role = member.Role
+			} else {
+				activeOrg.Role = domain.RoleOwner
+			}
+		}
+	}
+
 	return &LoginOutput{
-		User:   user,
-		Tokens: tokens,
+		User:         user,
+		Organization: activeOrg,
+		Tokens:       tokens,
 	}, nil
 }
 

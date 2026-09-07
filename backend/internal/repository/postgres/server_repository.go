@@ -316,3 +316,21 @@ func (r *ServerRepository) GetByIDWithSecret(ctx context.Context, id uuid.UUID) 
 
 	return &s, nil
 }
+
+// UpdateSSHHardened updates the SSH hardening security flag for a server.
+func (r *ServerRepository) UpdateSSHHardened(ctx context.Context, id uuid.UUID, hardened bool) error {
+	query := `UPDATE servers SET ssh_hardened = $2 WHERE id = $1;`
+	_, err := r.pool.Exec(ctx, query, id, hardened)
+	return err
+}
+
+// GetSSHHardened retrieves the SSH hardening state for a server.
+func (r *ServerRepository) GetSSHHardened(ctx context.Context, id uuid.UUID) (bool, error) {
+	query := `SELECT ssh_hardened FROM servers WHERE id = $1;`
+	var hardened bool
+	err := r.pool.QueryRow(ctx, query, id).Scan(&hardened)
+	if err != nil {
+		return false, err
+	}
+	return hardened, nil
+}

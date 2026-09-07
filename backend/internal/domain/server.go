@@ -54,4 +54,8 @@ type ServerRepository interface {
 	SetAgentSecret(ctx context.Context, serverID uuid.UUID, secretHash, secretPrefix string) error
 
 	GetByIDWithSecret(ctx context.Context, id uuid.UUID) (*Server, error)
+
+	UpdateSSHHardened(ctx context.Context, id uuid.UUID, hardened bool) error
+
+	GetSSHHardened(ctx context.Context, id uuid.UUID) (bool, error)
 }

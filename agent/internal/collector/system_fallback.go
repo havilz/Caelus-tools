@@ -43,5 +43,6 @@ func (c *FallbackCollector) Collect(_ context.Context) (*transport.HostMetrics, 
 		OS:                 runtime.GOOS,
 		Platform:           fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
 		Hostname:           hostname,
+		SSHHardened:        false,
 	}, nil
 }

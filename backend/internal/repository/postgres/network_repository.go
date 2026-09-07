@@ -132,9 +132,9 @@ func (r *NetworkRepository) DeleteNetwork(ctx context.Context, id uuid.UUID) err
 func (r *NetworkRepository) CreateFirewallRule(ctx context.Context, rule *domain.FirewallRule) error {
 	query := `
 		INSERT INTO firewall_rules (
-			id, organization_id, network_id, name, direction, protocol, port_range, source, action, status, created_at, updated_at
+			id, organization_id, network_id, server_id, name, direction, protocol, port_range, source, action, status, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 		) RETURNING created_at, updated_at;
 	`
 	if rule.ID == uuid.Nil {
@@ -150,6 +150,7 @@ func (r *NetworkRepository) CreateFirewallRule(ctx context.Context, rule *domain
 		rule.ID,
 		rule.OrganizationID,
 		rule.NetworkID,
+		rule.ServerID,
 		rule.Name,
 		rule.Direction,
 		rule.Protocol,
@@ -162,9 +163,40 @@ func (r *NetworkRepository) CreateFirewallRule(ctx context.Context, rule *domain
 	).Scan(&rule.CreatedAt, &rule.UpdatedAt)
 }
 
+func (r *NetworkRepository) GetFirewallRuleByID(ctx context.Context, id uuid.UUID) (*domain.FirewallRule, error) {
+	query := `
+		SELECT id, organization_id, network_id, server_id, name, direction, protocol, port_range, source, action, status, created_at, updated_at
+		FROM firewall_rules
+		WHERE id = $1;
+	`
+	var rule domain.FirewallRule
+	err := r.pool.QueryRow(ctx, query, id).Scan(
+		&rule.ID,
+		&rule.OrganizationID,
+		&rule.NetworkID,
+		&rule.ServerID,
+		&rule.Name,
+		&rule.Direction,
+		&rule.Protocol,
+		&rule.PortRange,
+		&rule.Source,
+		&rule.Action,
+		&rule.Status,
+		&rule.CreatedAt,
+		&rule.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("firewall rule not found: %w", domain.ErrNotFound)
+		}
+		return nil, err
+	}
+	return &rule, nil
+}
+
 func (r *NetworkRepository) ListFirewallRulesByOrg(ctx context.Context, orgID uuid.UUID) ([]domain.FirewallRule, error) {
 	query := `
-		SELECT id, organization_id, network_id, name, direction, protocol, port_range, source, action, status, created_at, updated_at
+		SELECT id, organization_id, network_id, server_id, name, direction, protocol, port_range, source, action, status, created_at, updated_at
 		FROM firewall_rules
 		WHERE organization_id = $1
 		ORDER BY created_at DESC;
@@ -182,6 +214,7 @@ func (r *NetworkRepository) ListFirewallRulesByOrg(ctx context.Context, orgID uu
 			&rule.ID,
 			&rule.OrganizationID,
 			&rule.NetworkID,
+			&rule.ServerID,
 			&rule.Name,
 			&rule.Direction,
 			&rule.Protocol,

@@ -361,6 +361,9 @@ func registerSecurityRoutes(r chi.Router, secH *v1.SecurityHandler) {
 		secRouter.Get("/findings", secH.ListFindings)
 		secRouter.Get("/findings/{id}", secH.GetFinding)
 		secRouter.Patch("/findings/{id}/status", secH.UpdateFindingStatus)
+		secRouter.Post("/findings/{id}/remediate", secH.RemediateFinding)
+		secRouter.Post("/findings/{id}/reopen", secH.ReopenFinding)
+		secRouter.Post("/findings/{id}/reverify", secH.ReverifyFinding)
 
 		secRouter.Get("/incidents", secH.ListIncidents)
 		secRouter.Post("/incidents", secH.CreateIncident)
