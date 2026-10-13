@@ -162,9 +162,23 @@ export default function VPSManagementPage() {
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-[#707070]">
                     <ServerIcon className="h-8 w-8 mx-auto text-[#404040] mb-2" />
-                    {searchQuery
-                      ? "No servers matching search criteria"
-                      : "No servers registered yet. Click 'Add / Connect Server' to get started."}
+                    <p className="text-sm text-zinc-400 font-medium">
+                      {searchQuery
+                        ? "No servers matching search criteria"
+                        : "No servers registered yet."}
+                    </p>
+                    {!searchQuery && canManageServers && (
+                      <div className="mt-4">
+                        <Button
+                          size="sm"
+                          onClick={() => setIsCreateOpen(true)}
+                          className="cursor-pointer inline-flex items-center gap-1.5"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span>Add / Connect Server</span>
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (

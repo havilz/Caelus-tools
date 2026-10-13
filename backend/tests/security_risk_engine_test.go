@@ -94,6 +94,18 @@ func (m *mockSecurityRepo) ListScans(ctx context.Context, orgID uuid.UUID, serve
 }
 
 func (m *mockSecurityRepo) UpsertFinding(ctx context.Context, f *domain.SecurityFinding) error {
+	for id, existing := range m.findings {
+		if existing.OrganizationID == f.OrganizationID &&
+			existing.Fingerprint == f.Fingerprint &&
+			((existing.ServerID == nil && f.ServerID == nil) || (existing.ServerID != nil && f.ServerID != nil && *existing.ServerID == *f.ServerID)) {
+			if existing.Status == domain.FindingStatusResolved || existing.Status == domain.FindingStatusFalsePositive {
+				f.Status = existing.Status
+			}
+			f.ID = id
+			m.findings[id] = f
+			return nil
+		}
+	}
 	m.findings[f.ID] = f
 	return nil
 }
@@ -118,6 +130,15 @@ func (m *mockSecurityRepo) ListFindings(ctx context.Context, orgID uuid.UUID, se
 func (m *mockSecurityRepo) UpdateFindingStatus(ctx context.Context, orgID, findingID uuid.UUID, status domain.FindingStatus) error {
 	if f, exists := m.findings[findingID]; exists && f.OrganizationID == orgID {
 		f.Status = status
+		return nil
+	}
+	return domain.ErrNotFound
+}
+
+func (m *mockSecurityRepo) ReopenFinding(ctx context.Context, orgID, findingID uuid.UUID) error {
+	if f, exists := m.findings[findingID]; exists && f.OrganizationID == orgID {
+		f.Status = domain.FindingStatusOpen
+		f.ResolvedAt = nil
 		return nil
 	}
 	return domain.ErrNotFound
@@ -178,7 +199,7 @@ func TestSecurityHTTP_Endpoints(t *testing.T) {
 	metRepo := &mockMetricRepo{}
 	orchestrator := sentinel.NewOrchestrator(secRepo, nil)
 
-	secUc := securityUcPkg.NewSecurityUsecase(secRepo, srvRepo, metRepo, orchestrator)
+	secUc := securityUcPkg.NewSecurityUsecase(secRepo, srvRepo, metRepo, orchestrator, nil, nil)
 	handler := v1.NewSecurityHandler(secUc)
 
 	routerConfig := deliveryHttp.RouterConfig{
@@ -226,5 +247,71 @@ func TestSecurityHTTP_Endpoints(t *testing.T) {
 	_ = json.Unmarshal(rr.Body.Bytes(), &res)
 	if len(res.Data) == 0 {
 		t.Fatalf("seharusnya ada minimal 1 scan pada riwayat")
+	}
+
+	testFindingID := uuid.New()
+	secRepo.findings[testFindingID] = &domain.SecurityFinding{
+		ID:             testFindingID,
+		OrganizationID: orgID,
+		Title:          "Port Terbuka: 6379 (Redis)",
+		Category:       domain.CategoryNetwork,
+		Severity:       domain.SeverityCritical,
+		Status:         domain.FindingStatusOpen,
+		Evidence:       []byte(`{"port": 6379, "service": "Redis"}`),
+	}
+
+	remediateReq, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/security/findings/%s/remediate", testFindingID.String()), nil)
+	remediateReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	rrRemediate := httptest.NewRecorder()
+	router.ServeHTTP(rrRemediate, remediateReq)
+
+	if rrRemediate.Code != http.StatusOK {
+		t.Fatalf("POST /api/v1/security/findings/{id}/remediate expected 200, got %d: %s", rrRemediate.Code, rrRemediate.Body.String())
+	}
+
+	if secRepo.findings[testFindingID].Status != domain.FindingStatusResolved {
+		t.Fatalf("status temuan setelah remediasi harus resolved, dapat: %s", secRepo.findings[testFindingID].Status)
+	}
+}
+
+func TestFindingDeduplication_PreservesResolvedStatus(t *testing.T) {
+	secRepo := &mockSecurityRepo{
+		scans:     make(map[uuid.UUID]*domain.SecurityScan),
+		findings:  make(map[uuid.UUID]*domain.SecurityFinding),
+		incidents: make(map[uuid.UUID]*domain.SecurityIncident),
+	}
+
+	orgID := uuid.New()
+	serverID := uuid.New()
+	fingerprint := "test-port-5432"
+
+	f1 := &domain.SecurityFinding{
+		ID:             uuid.New(),
+		OrganizationID: orgID,
+		ServerID:       &serverID,
+		Fingerprint:    fingerprint,
+		Title:          "Exposed Postgres Port 5432",
+		Status:         domain.FindingStatusOpen,
+	}
+	_ = secRepo.UpsertFinding(context.Background(), f1)
+
+	_ = secRepo.UpdateFindingStatus(context.Background(), orgID, f1.ID, domain.FindingStatusResolved)
+
+	f2 := &domain.SecurityFinding{
+		ID:             uuid.New(),
+		OrganizationID: orgID,
+		ServerID:       &serverID,
+		Fingerprint:    fingerprint,
+		Title:          "Exposed Postgres Port 5432",
+		Status:         domain.FindingStatusOpen,
+	}
+	_ = secRepo.UpsertFinding(context.Background(), f2)
+
+	list, _, _ := secRepo.ListFindings(context.Background(), orgID, &serverID, nil, nil, nil, 1, 10)
+	if len(list) != 1 {
+		t.Fatalf("jumlah temuan harus tetap 1 (tidak duplikat), dapat: %d", len(list))
+	}
+	if list[0].Status != domain.FindingStatusResolved {
+		t.Fatalf("status temuan harus tetap resolved dan tidak otomatis kembali open, dapat: %s", list[0].Status)
 	}
 }

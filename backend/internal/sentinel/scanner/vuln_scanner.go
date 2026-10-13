@@ -75,6 +75,9 @@ func (s *VulnScanner) Scan(ctx context.Context, target domain.ScanTarget) ([]dom
 	}
 
 	for _, rule := range knownVulnRules {
+		if rule.CheckID == "vuln-docker-socket-mount-security" && !target.HasDockerSocketMount {
+			continue
+		}
 		if rule.OSTypePattern == "" || strings.Contains(osLower, rule.OSTypePattern) {
 			findings = append(findings, domain.NormalizedFinding{
 				CheckID:     rule.CheckID,

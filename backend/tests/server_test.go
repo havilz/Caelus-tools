@@ -101,6 +101,14 @@ func (m *mockServerRepo) GetByIDWithSecret(ctx context.Context, id uuid.UUID) (*
 	return nil, domain.ErrNotFound
 }
 
+func (m *mockServerRepo) UpdateSSHHardened(ctx context.Context, id uuid.UUID, hardened bool) error {
+	return nil
+}
+
+func (m *mockServerRepo) GetSSHHardened(ctx context.Context, id uuid.UUID) (bool, error) {
+	return false, nil
+}
+
 func setupServerUsecaseTest() (server.ServerUsecase, *mockServerRepo, *mockProviderRepo, uuid.UUID, uuid.UUID) {
 	serverRepo := newMockServerRepo()
 	provRepo := newMockProviderRepo()

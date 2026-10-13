@@ -109,16 +109,3 @@ func (c *HTTPClient) applyHeaders(req *http.Request) {
 	req.Header.Set("X-Server-ID", c.serverID.String())
 	req.Header.Set("User-Agent", "caelus-agent/1.0.0")
 }
-
-func (c *HTTPClient) evaluateResponse(resp *http.Response) error {
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return nil
-	}
-
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return ErrUnauthorizedPayload
-	}
-
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-	return fmt.Errorf("%w: status %d, body: %s", ErrServerError, resp.StatusCode, string(respBody))
-}

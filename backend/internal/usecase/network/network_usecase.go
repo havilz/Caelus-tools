@@ -2,22 +2,32 @@ package network
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/havilz/caelus-cloud/backend/internal/domain"
+	"github.com/havilz/caelus-cloud/backend/internal/usecase/actionqueue"
 )
 
 type UseCase struct {
-	repo domain.NetworkRepository
+	repo        domain.NetworkRepository
+	serverRepo  domain.ServerRepository
+	actionQueue actionqueue.ActionQueue
 }
 
-func NewUseCase(repo domain.NetworkRepository) *UseCase {
-	return &UseCase{repo: repo}
+// NewUseCase initializes the network usecase with repository and action queue dependencies.
+func NewUseCase(repo domain.NetworkRepository, serverRepo domain.ServerRepository, actionQueue actionqueue.ActionQueue) *UseCase {
+	return &UseCase{
+		repo:        repo,
+		serverRepo:  serverRepo,
+		actionQueue: actionQueue,
+	}
 }
 
+// CreateNetwork creates a virtual network and provisions the local docker bridge if available.
 func (u *UseCase) CreateNetwork(ctx context.Context, orgID uuid.UUID, req domain.CreateNetworkRequest) (*domain.Network, error) {
 	name := strings.TrimSpace(strings.ToLower(req.Name))
 	name = strings.ReplaceAll(name, " ", "-")
@@ -63,10 +73,12 @@ func (u *UseCase) CreateNetwork(ctx context.Context, orgID uuid.UUID, req domain
 	return net, nil
 }
 
+// ListNetworks retrieves all virtual networks within an organization.
 func (u *UseCase) ListNetworks(ctx context.Context, orgID uuid.UUID) ([]domain.Network, error) {
 	return u.repo.ListNetworksByOrg(ctx, orgID)
 }
 
+// DeleteNetwork removes a virtual network and its corresponding docker bridge.
 func (u *UseCase) DeleteNetwork(ctx context.Context, orgID uuid.UUID, id uuid.UUID) error {
 	net, err := u.repo.GetNetworkByID(ctx, id)
 	if err == nil && net != nil {
@@ -78,11 +90,13 @@ func (u *UseCase) DeleteNetwork(ctx context.Context, orgID uuid.UUID, id uuid.UU
 	return u.repo.DeleteNetwork(ctx, id)
 }
 
+// CreateFirewallRule saves a firewall rule and enqueues the APPLY_FIREWALL_RULE action.
 func (u *UseCase) CreateFirewallRule(ctx context.Context, orgID uuid.UUID, req domain.CreateFirewallRuleRequest) (*domain.FirewallRule, error) {
 	rule := &domain.FirewallRule{
 		ID:             uuid.New(),
 		OrganizationID: orgID,
 		NetworkID:      req.NetworkID,
+		ServerID:       req.ServerID,
 		Name:           strings.TrimSpace(req.Name),
 		Direction:      req.Direction,
 		Protocol:       req.Protocol,
@@ -96,13 +110,72 @@ func (u *UseCase) CreateFirewallRule(ctx context.Context, orgID uuid.UUID, req d
 		return nil, fmt.Errorf("gagal menyimpan firewall rule: %w", err)
 	}
 
+	if u.actionQueue != nil {
+		payloadBytes, _ := json.Marshal(map[string]string{
+			"name":       rule.Name,
+			"direction":  rule.Direction,
+			"protocol":   rule.Protocol,
+			"port_range": rule.PortRange,
+			"source":     rule.Source,
+			"action":     rule.Action,
+		})
+
+		act := domain.AgentAction{
+			ID:      uuid.New().String(),
+			Type:    "APPLY_FIREWALL_RULE",
+			Target:  rule.Name,
+			Payload: string(payloadBytes),
+		}
+
+		if rule.ServerID != nil {
+			u.actionQueue.Enqueue(*rule.ServerID, act)
+		} else if u.serverRepo != nil {
+			if servers, _, err := u.serverRepo.ListByOrg(ctx, orgID, 1, 1000); err == nil {
+				for _, srv := range servers {
+					u.actionQueue.Enqueue(srv.ID, act)
+				}
+			}
+		}
+	}
+
 	return rule, nil
 }
 
+// ListFirewallRules retrieves all firewall rules belonging to an organization.
 func (u *UseCase) ListFirewallRules(ctx context.Context, orgID uuid.UUID) ([]domain.FirewallRule, error) {
 	return u.repo.ListFirewallRulesByOrg(ctx, orgID)
 }
 
+// DeleteFirewallRule removes a firewall rule and enqueues the REMOVE_FIREWALL_RULE action.
 func (u *UseCase) DeleteFirewallRule(ctx context.Context, orgID uuid.UUID, id uuid.UUID) error {
+	rule, err := u.repo.GetFirewallRuleByID(ctx, id)
+	if err == nil && rule != nil && u.actionQueue != nil {
+		payloadBytes, _ := json.Marshal(map[string]string{
+			"name":       rule.Name,
+			"direction":  rule.Direction,
+			"protocol":   rule.Protocol,
+			"port_range": rule.PortRange,
+			"source":     rule.Source,
+			"action":     rule.Action,
+		})
+
+		act := domain.AgentAction{
+			ID:      uuid.New().String(),
+			Type:    "REMOVE_FIREWALL_RULE",
+			Target:  rule.Name,
+			Payload: string(payloadBytes),
+		}
+
+		if rule.ServerID != nil {
+			u.actionQueue.Enqueue(*rule.ServerID, act)
+		} else if u.serverRepo != nil {
+			if servers, _, err := u.serverRepo.ListByOrg(ctx, orgID, 1, 1000); err == nil {
+				for _, srv := range servers {
+					u.actionQueue.Enqueue(srv.ID, act)
+				}
+			}
+		}
+	}
+
 	return u.repo.DeleteFirewallRule(ctx, id)
 }

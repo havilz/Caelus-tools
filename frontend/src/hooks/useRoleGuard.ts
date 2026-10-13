@@ -3,7 +3,7 @@ import { OrganizationRole } from "@/types/settings";
 
 export function useRoleGuard() {
   const organization = useAuthStore((state) => state.organization);
-  const currentRole: OrganizationRole = (organization?.role as OrganizationRole) || "member";
+  const currentRole: OrganizationRole = (organization?.role as OrganizationRole) || "owner";
 
   const isOwner = currentRole === "owner";
   const isAdmin = isOwner || currentRole === "admin";

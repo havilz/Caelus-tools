@@ -104,6 +104,21 @@ export default function SecurityPage() {
     loadData();
   };
 
+  const handleRemediateFinding = async (findingId: string) => {
+    await securityService.remediateFinding(findingId);
+    loadData();
+  };
+
+  const handleReopenFinding = async (findingId: string) => {
+    await securityService.reopenFinding(findingId);
+    loadData();
+  };
+
+  const handleReverifyFinding = async (findingId: string) => {
+    await securityService.reverifyFinding(findingId);
+    loadData();
+  };
+
   const filteredFindings = findings.filter((f) =>
     f.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     f.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -270,17 +285,41 @@ export default function SecurityPage() {
                 <option value="vulnerability">Vulnerabilities</option>
               </select>
 
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as FindingStatus | "all")}
-                className={AppTheme.controls.selectSm}
-              >
-                <option value="all">All Statuses</option>
-                <option value="open">Open</option>
-                <option value="acknowledged">Acknowledged</option>
-                <option value="resolved">Resolved</option>
-                <option value="false_positive">False Positive</option>
-              </select>
+              <div className="flex items-center gap-1 bg-[#181818] p-1 rounded-lg border border-[#2e2e2e]">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("all")}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    statusFilter === "all"
+                      ? "bg-[#282828] text-zinc-100"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("open")}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    statusFilter === "open"
+                      ? "bg-amber-950/60 text-amber-400 border border-amber-800/40"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  Open
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("resolved")}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    statusFilter === "resolved"
+                      ? "bg-emerald-950/60 text-emerald-400 border border-emerald-800/40"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  Resolved
+                </button>
+              </div>
             </div>
           </div>
 
@@ -442,6 +481,9 @@ export default function SecurityPage() {
           setSelectedFinding(null);
         }}
         onUpdateStatus={handleUpdateFindingStatus}
+        onRemediate={handleRemediateFinding}
+        onReopen={handleReopenFinding}
+        onReverify={handleReverifyFinding}
       />
     </div>
   );

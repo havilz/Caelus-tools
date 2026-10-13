@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/havilz/caelus-cloud/agent/internal/collector"
 	"github.com/havilz/caelus-cloud/agent/internal/config"
 	"github.com/havilz/caelus-cloud/agent/internal/docker"
+	"github.com/havilz/caelus-cloud/agent/internal/firewall"
 	"github.com/havilz/caelus-cloud/agent/internal/transport"
 	"github.com/havilz/caelus-cloud/agent/pkg/logger"
 )
@@ -40,12 +42,19 @@ func main() {
 
 	sysCollector := collector.NewCollector()
 	dockerInspector := docker.NewInspector(cfg.DockerSocketPath)
+	fwEngine := firewall.NewEngine()
 	transportClient := transport.NewHTTPClient(cfg.APIEndpoint, cfg.ServerID, cfg.AgentSecret, cfg.TLSSkipVerify)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 
-	runCollectionCycle(ctx, sysCollector, dockerInspector, transportClient, cfg)
+	if err := fwEngine.Initialize(ctx); err != nil {
+		slog.Warn("failed to initialize host firewall engine", "type", fwEngine.Type(), "error", err)
+	} else {
+		slog.Info("initialized host firewall engine", "type", fwEngine.Type())
+	}
+
+	runCollectionCycle(ctx, sysCollector, dockerInspector, fwEngine, transportClient, cfg)
 
 	ticker := time.NewTicker(time.Duration(cfg.CollectionIntervalSec) * time.Second)
 	defer ticker.Stop()
@@ -56,7 +65,7 @@ func main() {
 			slog.Info("shutting down caelus-agent gracefully")
 			return
 		case <-ticker.C:
-			runCollectionCycle(ctx, sysCollector, dockerInspector, transportClient, cfg)
+			runCollectionCycle(ctx, sysCollector, dockerInspector, fwEngine, transportClient, cfg)
 		}
 	}
 }
@@ -65,6 +74,7 @@ func runCollectionCycle(
 	ctx context.Context,
 	sysCollector collector.Collector,
 	dockerInspector docker.Inspector,
+	fwEngine firewall.Engine,
 	transportClient transport.Client,
 	cfg *config.Config,
 ) {
@@ -172,6 +182,45 @@ func runCollectionCycle(
 					slog.Error("failed to execute RESTART_CONTAINER", "target", act.Target, "error", err)
 				} else {
 					slog.Info("successfully restarted container on host", "target", act.Target)
+				}
+			case "APPLY_FIREWALL_RULE":
+				var rule firewall.Rule
+				if act.Payload != "" {
+					if err := json.Unmarshal([]byte(act.Payload), &rule); err != nil {
+						slog.Error("failed to unmarshal APPLY_FIREWALL_RULE payload", "error", err)
+						continue
+					}
+				}
+				if rule.Name == "" {
+					rule.Name = act.Target
+				}
+				if err := fwEngine.ApplyRule(ctx, rule); err != nil {
+					slog.Error("failed to execute APPLY_FIREWALL_RULE", "target", act.Target, "error", err)
+				} else {
+					slog.Info("successfully applied firewall rule on host", "name", rule.Name, "port", rule.PortRange, "action", rule.Action)
+				}
+			case "REMOVE_FIREWALL_RULE":
+				var rule firewall.Rule
+				if act.Payload != "" {
+					if err := json.Unmarshal([]byte(act.Payload), &rule); err != nil {
+						slog.Error("failed to unmarshal REMOVE_FIREWALL_RULE payload", "error", err)
+						continue
+					}
+				}
+				if rule.Name == "" {
+					rule.Name = act.Target
+				}
+				if err := fwEngine.RemoveRule(ctx, rule); err != nil {
+					slog.Error("failed to execute REMOVE_FIREWALL_RULE", "target", act.Target, "error", err)
+				} else {
+					slog.Info("successfully removed firewall rule from host", "name", rule.Name, "port", rule.PortRange, "action", rule.Action)
+				}
+			case "HARDEN_SSH":
+				hardenCmd := exec.CommandContext(ctx, "sh", "-c", "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && (systemctl reload ssh || systemctl reload sshd || service ssh reload || true)")
+				if out, err := hardenCmd.CombinedOutput(); err != nil {
+					slog.Error("failed to execute HARDEN_SSH", "error", err, "output", string(out))
+				} else {
+					slog.Info("successfully applied CIS SSH hardening on host")
 				}
 			}
 		}

@@ -8,18 +8,18 @@ Entries follow formal conventions with explicit timestamps `[YYYY-MM-DD HH:mm:ss
 
 ## [Unreleased]
 
-### [2026-09-05 19:15:00] - Security Hardening: Container Escape Mitigation via Path Allowlist (Audit C-2)
+### [2026-09-07 12:40:00] - Sentinel Closed-Loop Remediation & State Deduplication
 
-- **Security Path Validation Package (`backend/pkg/security/path.go`)**:
-  - Implemented `ValidateHostPath` with a strict allowlist approach (only allowing volume subpaths under `/var/lib/caelus/volumes`, `/opt/caelus/volumes`, or directories specified via `ALLOWED_VOLUME_ROOTS`).
-  - Implemented canonical path resolution via `filepath.Clean` and deep ancestor symlink traversal evaluation via `filepath.EvalSymlinks` to prevent symlink escape exploits.
-  - Disallowed direct mounting of volume root directories to enforce volume isolation between applications.
-- **Allowed Volume Roots Configuration (`backend/pkg/config/config.go`, `.env.example`, `docker-compose.yml`, `cmd/api/main.go`)**:
-  - Added `AllowedVolumeRoots` to `AppConfig` and initialized allowlists during API server bootstrap.
-  - Documented `ALLOWED_VOLUME_ROOTS` in `.env.example` and forwarded it to the `api` container in `docker-compose.yml`.
-- **Harmonization in Orchestration & IaC Layer (`deployment_usecase.go`, `docker_pipeline.go`, `apply_engine.go`)**:
-  - Replaced legacy hardcoded denylists in deployment usecases and Docker pipeline with delegation to `security.ValidateHostPath`.
-  - Secured volume bind mount parsing in IaC template execution engine.
-- **Comprehensive Security Test Suite (`backend/tests/path_validator_test.go`)**:
-  - Added thorough tests: rejection of sensitive system directories (`/`, `/etc`, `/root`, `/home`, `/tmp`, `/opt`, `/var/run/docker.sock`), path traversal (`../`), relative paths, and real filesystem symlink escape simulations (`t.TempDir()`).
-  - Verified rejection of unsafe host path bindings during container creation via `CreateDeployment`.
+- **Database Deduplication Migration (`000017_fix_security_findings_deduplication`, `000018_add_ssh_hardened_to_servers`)**:
+  - Replaced partial fingerprint index with unconditional `NULLS NOT DISTINCT` unique index to eliminate duplicate finding creation.
+  - Added `ssh_hardened` boolean flag to servers table to persist host security posture.
+  - Updated PostgreSQL `UpsertFinding` conflict clause to preserve `resolved` and `false_positive` states on routine scans.
+- **Closed-Loop Telemetry & Verification Subsystem**:
+  - Added live SSH daemon inspection (`checkSSHHardening`) to agent Linux collector inspecting `/etc/ssh/sshd_config`.
+  - Hooked `CAELUS-FIREWALL` into `DOCKER-USER` chain to prevent Docker container port bypass on Linux hosts.
+  - Updated `HostConfigScanner` and `VulnScanner` to eliminate false positives and only report findings when real policy violations exist.
+  - Added `ReopenFinding` and `ReverifyFinding` endpoints on backend API and client services.
+- **Frontend Dashboard Enhancements**:
+  - Added quick status filter pill buttons (All, Open, Resolved) to Sentinel security hub.
+  - Added interactive "Verifikasi Ulang" and "Buka Kembali" actions in `FindingDetailModal.tsx`.
+  - Removed glass backdrop blur effects from modals.

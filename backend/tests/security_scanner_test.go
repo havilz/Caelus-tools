@@ -158,3 +158,43 @@ func TestFindingNormalizer_GeneratesFingerprint(t *testing.T) {
 		t.Fatalf("fingerprint harus konsisten untuk checkID dan serverID yang sama")
 	}
 }
+
+func TestHostConfigScanner_SSHHardenedSkipped(t *testing.T) {
+	s := scanner.NewHostConfigScanner()
+	target := domain.ScanTarget{
+		TelemetryData: &domain.HostMetricsPayload{
+			SSHHardened: true,
+			Platform:    "ubuntu",
+		},
+	}
+
+	findings, err := s.Scan(context.Background(), target)
+	if err != nil {
+		t.Fatalf("scan gagal: %v", err)
+	}
+
+	for _, f := range findings {
+		if f.CheckID == "host-ssh-hardening-check" {
+			t.Fatalf("host-ssh-hardening-check seharusnya tidak muncul jika server sudah di-harden")
+		}
+	}
+}
+
+func TestVulnScanner_DockerSocketSkippedWhenNoMount(t *testing.T) {
+	s := scanner.NewVulnScanner()
+	target := domain.ScanTarget{
+		OSType:               "linux",
+		HasDockerSocketMount: false,
+	}
+
+	findings, err := s.Scan(context.Background(), target)
+	if err != nil {
+		t.Fatalf("scan gagal: %v", err)
+	}
+
+	for _, f := range findings {
+		if f.CheckID == "vuln-docker-socket-mount-security" {
+			t.Fatalf("vuln-docker-socket-mount-security seharusnya tidak muncul jika tidak ada container yang me-mount socket")
+		}
+	}
+}

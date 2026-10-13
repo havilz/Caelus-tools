@@ -77,20 +77,22 @@ func (s *HostConfigScanner) Scan(ctx context.Context, target domain.ScanTarget) 
 		}
 	}
 
-	findings = append(findings, domain.NormalizedFinding{
-		CheckID:     "host-ssh-hardening-check",
-		Category:    domain.CategoryHostConfig,
-		Severity:    domain.SeverityLow,
-		Title:       "Audit Konfigurasi SSH Daemon (CIS Benchmark)",
-		Description: "Pastikan konfigurasi OpenSSH menolak login langsung user root dan menonaktifkan autentikasi password plaintext.",
-		Evidence: map[string]any{
-			"recommended_permit_root_login": "no",
-			"recommended_password_auth":     "no",
-			"config_path":                   "/etc/ssh/sshd_config",
-		},
-		Recommendation:     "Ubah 'PermitRootLogin no' dan 'PasswordAuthentication no' pada file /etc/ssh/sshd_config.",
-		RemediationCommand: "sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && sudo systemctl reload ssh",
-	})
+	if target.TelemetryData == nil || !target.TelemetryData.SSHHardened {
+		findings = append(findings, domain.NormalizedFinding{
+			CheckID:     "host-ssh-hardening-check",
+			Category:    domain.CategoryHostConfig,
+			Severity:    domain.SeverityLow,
+			Title:       "Audit Konfigurasi SSH Daemon (CIS Benchmark)",
+			Description: "Pastikan konfigurasi OpenSSH menolak login langsung user root dan menonaktifkan autentikasi password plaintext.",
+			Evidence: map[string]any{
+				"recommended_permit_root_login": "no",
+				"recommended_password_auth":     "no",
+				"config_path":                   "/etc/ssh/sshd_config",
+			},
+			Recommendation:     "Ubah 'PermitRootLogin no' dan 'PasswordAuthentication no' pada file /etc/ssh/sshd_config.",
+			RemediationCommand: "sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && sudo systemctl reload ssh",
+		})
+	}
 
 	return findings, nil
 }

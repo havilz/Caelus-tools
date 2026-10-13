@@ -190,7 +190,7 @@ func (r *SecurityRepository) UpsertFinding(ctx context.Context, f *domain.Securi
 			first_detected_at, last_detected_at
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-		ON CONFLICT (organization_id, server_id, fingerprint) WHERE status != 'resolved'
+		ON CONFLICT (organization_id, server_id, fingerprint)
 		DO UPDATE SET
 			scan_id = EXCLUDED.scan_id,
 			severity = EXCLUDED.severity,
@@ -199,7 +199,12 @@ func (r *SecurityRepository) UpsertFinding(ctx context.Context, f *domain.Securi
 			evidence = EXCLUDED.evidence,
 			recommendation = EXCLUDED.recommendation,
 			remediation_command = EXCLUDED.remediation_command,
-			last_detected_at = EXCLUDED.last_detected_at;
+			last_detected_at = EXCLUDED.last_detected_at,
+			status = CASE 
+				WHEN security_findings.status = 'resolved' THEN 'resolved'
+				WHEN security_findings.status = 'false_positive' THEN 'false_positive'
+				ELSE EXCLUDED.status
+			END;
 	`
 	if f.ID == uuid.Nil {
 		f.ID = uuid.New()
@@ -372,6 +377,23 @@ func (r *SecurityRepository) UpdateFindingStatus(ctx context.Context, orgID, fin
 	cmd, err := r.pool.Exec(ctx, query, findingID, orgID, status, resolvedAt)
 	if err != nil {
 		return fmt.Errorf("gagal update status finding: %w", err)
+	}
+	if cmd.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+// ReopenFinding resets a finding back to open status.
+func (r *SecurityRepository) ReopenFinding(ctx context.Context, orgID, findingID uuid.UUID) error {
+	query := `
+		UPDATE security_findings
+		SET status = 'open', resolved_at = NULL, last_detected_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND organization_id = $2;
+	`
+	cmd, err := r.pool.Exec(ctx, query, findingID, orgID)
+	if err != nil {
+		return fmt.Errorf("gagal membuka kembali status finding: %w", err)
 	}
 	if cmd.RowsAffected() == 0 {
 		return domain.ErrNotFound

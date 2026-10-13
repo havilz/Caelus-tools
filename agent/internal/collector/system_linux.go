@@ -71,6 +71,7 @@ func (c *LinuxCollector) Collect(_ context.Context) (*transport.HostMetrics, err
 		OS:                 runtime.GOOS,
 		Platform:           fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
 		Hostname:           hostname,
+		SSHHardened:        c.checkSSHHardening(),
 	}, nil
 }
 
@@ -312,4 +313,47 @@ func (c *LinuxCollector) readUptime() uint64 {
 		return 0
 	}
 	return uint64(val)
+}
+
+func (c *LinuxCollector) checkSSHHardening() bool {
+	configPaths := []string{"/etc/ssh/sshd_config"}
+	if entries, err := os.ReadDir("/etc/ssh/sshd_config.d"); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".conf") {
+				configPaths = append(configPaths, "/etc/ssh/sshd_config.d/"+e.Name())
+			}
+		}
+	}
+
+	permitRootNo := false
+	passwordAuthNo := false
+
+	for _, path := range configPaths {
+		file, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if strings.HasPrefix(line, "#") {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				key := strings.ToLower(fields[0])
+				val := strings.ToLower(fields[1])
+				if key == "permitrootlogin" && val == "no" {
+					permitRootNo = true
+				}
+				if key == "passwordauthentication" && val == "no" {
+					passwordAuthNo = true
+				}
+			}
+		}
+		_ = scanner.Err()
+		_ = file.Close()
+	}
+
+	return permitRootNo && passwordAuthNo
 }

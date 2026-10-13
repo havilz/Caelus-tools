@@ -151,7 +151,8 @@ type ScanTarget struct {
 	IPAddress      string
 	Hostname       string
 	OSType         string
-	TelemetryData  *HostMetricsPayload
+	TelemetryData        *HostMetricsPayload
+	HasDockerSocketMount bool
 }
 
 type SecurityRepository interface {
@@ -170,6 +171,8 @@ type SecurityRepository interface {
 	ListFindings(ctx context.Context, orgID uuid.UUID, serverID *uuid.UUID, category *FindingCategory, severity *FindingSeverity, status *FindingStatus, page, limit int) ([]SecurityFinding, int, error)
 
 	UpdateFindingStatus(ctx context.Context, orgID, findingID uuid.UUID, status FindingStatus) error
+
+	ReopenFinding(ctx context.Context, orgID, findingID uuid.UUID) error
 
 	GetPostureOverview(ctx context.Context, orgID uuid.UUID) (*SecurityPostureOverview, error)
 

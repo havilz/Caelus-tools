@@ -19,6 +19,7 @@ export interface VirtualNetwork {
 export interface FirewallRule {
   id: string;
   network_id?: string;
+  server_id?: string;
   targetNetworkId?: string;
   name: string;
   direction: 'inbound' | 'outbound';
@@ -42,6 +43,7 @@ export interface CreateNetworkRequest {
 
 export interface CreateFirewallRuleRequest {
   network_id?: string;
+  server_id?: string;
   name: string;
   direction: 'inbound' | 'outbound';
   protocol: 'tcp' | 'udp' | 'icmp' | 'all';

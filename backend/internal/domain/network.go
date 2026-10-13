@@ -52,6 +52,7 @@ type FirewallRule struct {
 	ID             uuid.UUID  `json:"id"`
 	OrganizationID uuid.UUID  `json:"organization_id"`
 	NetworkID      *uuid.UUID `json:"network_id,omitempty"`
+	ServerID       *uuid.UUID `json:"server_id,omitempty"`
 	Name           string     `json:"name"`
 	Direction      string     `json:"direction"`
 	Protocol       string     `json:"protocol"`
@@ -65,6 +66,7 @@ type FirewallRule struct {
 
 type CreateFirewallRuleRequest struct {
 	NetworkID *uuid.UUID `json:"network_id,omitempty"`
+	ServerID  *uuid.UUID `json:"server_id,omitempty"`
 	Name      string     `json:"name" validate:"required,min=2,max=100"`
 	Direction string     `json:"direction" validate:"required,oneof=inbound outbound"`
 	Protocol  string     `json:"protocol" validate:"required,oneof=tcp udp icmp all"`
@@ -80,6 +82,7 @@ type NetworkRepository interface {
 	DeleteNetwork(ctx context.Context, id uuid.UUID) error
 
 	CreateFirewallRule(ctx context.Context, rule *FirewallRule) error
+	GetFirewallRuleByID(ctx context.Context, id uuid.UUID) (*FirewallRule, error)
 	ListFirewallRulesByOrg(ctx context.Context, orgID uuid.UUID) ([]FirewallRule, error)
 	DeleteFirewallRule(ctx context.Context, id uuid.UUID) error
 }

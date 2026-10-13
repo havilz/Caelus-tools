@@ -179,11 +179,14 @@ func main() {
 	syncEngine.Start(context.Background())
 	defer syncEngine.Stop()
 
+	networkRepo := postgres.NewNetworkRepository(client.Pool)
+	networkUc := networkUsecase.NewUseCase(networkRepo, serverRepo, actionQueue)
+
 	securityRepo := postgres.NewSecurityRepository(client.Pool)
 	sentinelOrchestrator := sentinel.NewOrchestrator(securityRepo, func(ctx context.Context, event domain.SystemEvent) {
 		centralDispatcher.Publish(ctx, event)
 	})
-	securityUc := securityUsecase.NewSecurityUsecase(securityRepo, serverRepo, metricRepo, sentinelOrchestrator)
+	securityUc := securityUsecase.NewSecurityUsecase(securityRepo, serverRepo, metricRepo, sentinelOrchestrator, networkUc, actionQueue)
 
 	iacRepo := postgres.NewIaCRepository(client.Pool)
 	deploymentRepo := postgres.NewDeploymentRepository(client.Pool)
@@ -198,9 +201,6 @@ func main() {
 		ActionQueue:    actionQueue,
 	})
 	deploymentUc := orchestrationUsecase.NewUseCase(deploymentRepo, wsHub)
-
-	networkRepo := postgres.NewNetworkRepository(client.Pool)
-	networkUc := networkUsecase.NewUseCase(networkRepo)
 
 	volumeRepo := postgres.NewVolumeRepository(client.Pool)
 	volumeUc := volumeUsecase.NewUseCase(volumeRepo, serverRepo, actionQueue)
