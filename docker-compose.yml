@@ -47,7 +47,7 @@ services:
   # MinIO Object Storage (S3-Compatible untuk Dev / Staging)
   # ----------------------------------------------------------------------------
   minio:
-    image: minio/minio:RELEASE.2024-01-18T22-51-28Z
+    image: pgsty/minio:latest
     container_name: caelus-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -60,7 +60,7 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "/usr/bin/mc", "ready", "local"]
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
